@@ -1,0 +1,65 @@
+# - name: "Update"
+#   module: "shell"
+#   params:
+#     command: "sudo apt-get update && sudo apt-get upgrade -y && sudo apt-get dist-upgrade -y"
+
+- name: "Check uptime"
+  module: "shell"
+  max_retries: 3
+  retry_delay: "2s"
+  params:
+    command: "uptime"
+
+- name: "Check process list"
+  module: "shell"
+  params:
+    command: "ps aux"
+
+- name: "List directory contents"
+  module: "shell"
+  params:
+    command: "ls -la"
+
+- name: "Check disk usage"
+  module: "shell"
+  params:
+    command: "df -h"
+
+- name: "Test failed task"
+  module: "shell"
+  max_retries: 2
+  retry_delay: "1s"
+  params:
+    command: "false"
+
+- name: "Ping Google DNS"
+  module: "shell"
+  params:
+    command: "ping -c 1 8.8.8.8"
+
+- name: "Display current date"
+  module: "shell"
+  params:
+    command: "date"
+
+- name: "Show current user"
+  module: "shell"
+  params:
+    command: "whoami"
+
+- name: "Test non-existent command"
+  module: "shell"
+  max_retries: 2
+  retry_delay: "1s"
+  params:
+    command: "nonexistent_command"
+
+- name: "Echo test"
+  module: "shell"
+  params:
+    command: "echo 'This is a test command'"
+
+# - name: "Reboot"
+#   module: "shell"
+#   params:
+#     command: "sudo reboot now"
