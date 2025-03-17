@@ -34,7 +34,7 @@ func SSHConnect(ctx context.Context, user, address, privateKeyPath, password str
 		User:            user,
 		Auth:            authMethods,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // In production, verify host keys.
-		Timeout:         5 * time.Second,
+		Timeout:         5 * time.Second,             // Timeout for establishing the connection.
 	}
 
 	addr := fmt.Sprintf("%s:%d", address, port)
@@ -59,6 +59,7 @@ func SSHConnect(ctx context.Context, user, address, privateKeyPath, password str
 }
 
 // RunCommand executes a command over an established SSH connection.
+// it uses the provided context to cancel the command execution if it hangs.
 func RunCommand(ctx context.Context, client *ssh.Client, cmd string) (string, error) {
 	session, err := client.NewSession()
 	if err != nil {
@@ -66,9 +67,26 @@ func RunCommand(ctx context.Context, client *ssh.Client, cmd string) (string, er
 	}
 	defer session.Close()
 
-	output, err := session.CombinedOutput(cmd)
-	if err != nil {
-		return "", fmt.Errorf("running command '%s': %w", cmd, err)
+	// start the command and capture its combined output in a goroutine.
+	type result struct {
+		output []byte
+		err    error
 	}
-	return string(output), nil
+	done := make(chan result, 1)
+	go func() {
+		out, err := session.CombinedOutput(cmd)
+		done <- result{output: out, err: err}
+	}()
+
+	select {
+	case <-ctx.Done():
+		// if context times out or is canceled, send a kill signal.
+		session.Signal(ssh.SIGKILL)
+		return "", fmt.Errorf("command execution canceled: %w", ctx.Err())
+	case res := <-done:
+		if res.err != nil {
+			return "", fmt.Errorf("running command '%s': %w", cmd, res.err)
+		}
+		return string(res.output), nil
+	}
 }
