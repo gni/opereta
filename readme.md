@@ -33,6 +33,33 @@ example command:
 ./opereta -inventory=./configs/inventory.yml -tasks=./configs/tasks.yml
 ```
 
+result:
+<pre>
+[4c0ed69a][c3088585] <span style="color: rgba(0, 255, 34, 0.69);">[-]</span> test <span style="color: rgba(0, 255, 34, 0.69);">[-]</span> Success echo hello
+Executed At: 2025-03-17T14:45:07+01:00 | Duration: 573.487803ms
+Result:
+hello world
+
+[4c0ed69a][30874cc8] <span style="color: rgba(0, 255, 34, 0.69);">[-]</span> test <span style="color: rgba(0, 255, 34, 0.69);">[-]</span> Success display date
+Executed At: 2025-03-17T14:45:07+01:00 | Duration: 124.661992ms
+Result:
+Mon Mar 17 13:45:07 UTC 2025
+
+[4c0ed69a][5cbfc9e8] <span style="color: rgba(0, 255, 34, 0.69);">[-]</span> test <span style="color: rgba(0, 255, 34, 0.69);">[-]</span> Success echo test
+Executed At: 2025-03-17T14:45:08+01:00 | Duration: 123.482879ms
+Result:
+test
+
+[f9b0b944][957fa1a2] <span style="color: rgb(201, 60, 60);">[-]</span> err <span style="color: rgb(201, 60, 60);">[-]</span> Error Task echo hello failed: after 1 task attempts, SSH connection failed: dialing SSH after 3 attempts: dial tcp 10.0.4.2:2222: connect: connection refused
+Executed At: 2025-03-17T14:45:14+01:00 | Duration: 6.045720843s
+
+<span style="color: rgb(0, 153, 255);">Summary per server:</span>
+<span style="color: rgba(0, 255, 34, 0.69);">Server: test - Total: 3, Success: 3, Failed: 0, Status: OK</span>
+<span style="color: rgb(201, 60, 60);">Server: err - Total: 1, Success: 0, Failed: 1, Status: UNREACHABLE</span>
+<span style="color: rgb(0, 153, 255);">All tasks completed.</span>
+</pre>
+
+
 ## configuration
 
 ### inventory file
