@@ -30,7 +30,7 @@ opereta accepts the following flags:
 example command:
 
 ```sh
-./opereta -inventory=./configs/inventory.test -tasks=./configs/tasks.yml
+./opereta -inventory=./configs/inventory.yml -tasks=./configs/tasks.yml
 ```
 
 ## configuration
