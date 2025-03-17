@@ -50,7 +50,7 @@ func formatLaunchingTask(hostGlobalShort, server, task, eventShort string) strin
 		hostGlobalShort, eventShort, marker, server+" "+marker, marker, task)
 }
 
-// formatSuccess now omits the redundant event id (it’s already in the header).
+// formatSuccess prints a successful task result.
 func formatSuccess(hostGlobalShort, server, task, result, eventShort, executedAt, duration string) string {
 	marker := coloredMarker(ColorGreen)
 	return fmt.Sprintf(
@@ -58,18 +58,16 @@ func formatSuccess(hostGlobalShort, server, task, result, eventShort, executedAt
 		hostGlobalShort, eventShort, marker, server, marker, task, executedAt, duration, result)
 }
 
-// Similarly, formatError no longer repeats the event id.
+// formatError prints an error message.
 func formatError(hostGlobalShort, server, message, eventShort, executedAt, duration string) string {
-
 	errorMarker := coloredMarker(ColorRed)
 	return fmt.Sprintf(
 		"[%s][%s] %s %s %s Error %s\nExecuted At: %s | Duration: %s\n",
 		hostGlobalShort, eventShort, errorMarker, server, errorMarker, message, executedAt, duration)
 }
 
-// And formatWarning.
+// formatWarning prints a warning message.
 func formatWarning(hostGlobalShort, server, message, eventShort, executedAt, duration string) string {
-
 	warningMarker := coloredMarker(ColorYellow)
 	return fmt.Sprintf(
 		"[%s][%s] %s %s %s Warning %s\nExecuted At: %s | Duration: %s\n",
@@ -103,7 +101,6 @@ func isConnectionError(err error) bool {
 }
 
 // safeExecute wraps module.Execute with a deferred recover to catch panics.
-// Note: The parameter type has been changed to map[string]string.
 func safeExecute(ctx context.Context, module core.Module, host inventory.Host, params map[string]string) (result string, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -114,7 +111,8 @@ func safeExecute(ctx context.Context, module core.Module, host inventory.Host, p
 	return result, err
 }
 
-// executeWithRetry attempts a task until retries are exhausted or success, using safeExecute.
+// executeWithRetry attempts a task until retries are exhausted or success.
+// It returns an error with the number of task attempts made.
 func executeWithRetry(ctx context.Context, module core.Module, host inventory.Host, task tasks.Task) (string, error) {
 	maxRet := taskRetries(task)
 	delay := taskRetryDelay(task)
@@ -127,22 +125,23 @@ func executeWithRetry(ctx context.Context, module core.Module, host inventory.Ho
 		if err == nil {
 			return result, nil
 		}
-		if isConnectionError(err) {
-			return "", fmt.Errorf("after %d SSH attempts, %w", attemptsUsed, err)
-		}
 		logrus.WithFields(logrus.Fields{
 			"host":    host.Name,
 			"task":    task.Name,
 			"module":  task.Module,
 			"attempt": attempt,
 		}).Warnf("Task execution failed: %v", err)
+		// If the error is due to a connection issue, break immediately.
+		if isConnectionError(err) {
+			break
+		}
 		select {
 		case <-ctx.Done():
 			return "", ctx.Err()
 		case <-time.After(delay):
 		}
 	}
-	return result, err
+	return "", fmt.Errorf("after %d task attempts, %w", attemptsUsed, err)
 }
 
 func taskRetries(task tasks.Task) int {
@@ -195,6 +194,10 @@ func main() {
 		}
 	}()
 
+	// Create a context with timeout.
+	ctx, cancelTimeout := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancelTimeout()
+
 	invPath := flag.String("inventory", "configs/inventory.yml", "Path to inventory file")
 	tasksPath := flag.String("tasks", "configs/tasks.yml", "Path to tasks file")
 	outputJSON := flag.Bool("output-json", false, "Output results in JSON format")
@@ -221,9 +224,6 @@ func main() {
 
 	moduleRegistry := modules.RegisterModules()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-
 	var wg sync.WaitGroup
 	var resMutex sync.Mutex
 	var results []TaskResult
@@ -235,13 +235,13 @@ func main() {
 		}
 	}
 
-	// processHost now recovers from any panic during host processing.
+	// processHost recovers from panics.
+	// For each host, if a task fails due to a connection error, we abort further tasks on that host.
 	processHost := func(host inventory.Host) {
 		defer func() {
 			if r := recover(); r != nil {
 				errMsg := fmt.Sprintf("Recovered from panic in host %s: %v", host.Name, r)
 				printColored(ColorRed, errMsg)
-				// Optionally, record a TaskResult for the host panic.
 			}
 		}()
 
@@ -249,17 +249,18 @@ func main() {
 		// Generate a unique global id per host session.
 		hostRunningID := uuid.New().String()
 		hostGlobalShort := hostRunningID[:8]
+
+		// If the host is unreachable, we abort further tasks.
 		abortHost := false
+
 		for _, task := range taskList {
 			if abortHost {
 				break
 			}
+
 			// Generate an event id for the current task.
 			eventID := uuid.New().String()
 			eventShort := eventID[:8]
-
-			// Uncomment the next line to print launching message.
-			// fmt.Print(formatLaunchingTask(hostGlobalShort, hostName, task.Name, eventShort))
 
 			module, exists := moduleRegistry[task.Module]
 			if !exists {
@@ -315,9 +316,11 @@ func main() {
 				} else if interactive {
 					fmt.Print(formatError(hostGlobalShort, hostName, msg, eventShort, executedAt, duration))
 				}
+				// If failure is due to connection error, mark the host as unreachable and stop further tasks.
 				if isConnectionError(err) {
 					abortHost = true
 				}
+				// Otherwise, record the failure and continue with next task.
 				continue
 			}
 			tr = TaskResult{
@@ -342,6 +345,7 @@ func main() {
 		}
 	}
 
+	// Launch tasks either concurrently or sequentially.
 	if *parallel {
 		for _, host := range inv.Hosts {
 			wg.Add(1)
