@@ -12,6 +12,7 @@
 
 - name: "Check process list"
   module: "shell"
+  no_result: true
   params:
     command: "ps aux"
 
@@ -44,6 +45,7 @@
 
 - name: "Show current user"
   module: "shell"
+  no_result: true
   params:
     command: "whoami"
 

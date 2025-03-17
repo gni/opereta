@@ -7,4 +7,5 @@ type Task struct {
 	Params     map[string]string `yaml:"params"`
 	MaxRetries int               `yaml:"max_retries,omitempty"` // Maximum number of retries for this task.
 	RetryDelay string            `yaml:"retry_delay,omitempty"` // Delay between retries (e.g., "3s"). Used if set.
+	NoResult   bool              `yaml:"no_result,omitempty"`
 }

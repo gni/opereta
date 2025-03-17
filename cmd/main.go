@@ -295,6 +295,7 @@ func main() {
 			duration := time.Since(startTime).String()
 			executedAt := time.Now().Format(time.RFC3339)
 			var tr TaskResult
+
 			if err != nil {
 				msg := fmt.Sprintf("Task %s failed: %v", task.Name, err)
 				tr = TaskResult{
@@ -323,6 +324,12 @@ func main() {
 				// Otherwise, record the failure and continue with next task.
 				continue
 			}
+
+			// If the task is marked as no_result, override the command output.
+			if task.NoResult {
+				result = "no result setup in task"
+			}
+
 			tr = TaskResult{
 				Host:       hostName,
 				Task:       task.Name,
